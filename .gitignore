@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.exe
+.env.local
+.env
+src/env-builtin.ts

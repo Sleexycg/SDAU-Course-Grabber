@@ -1,10 +1,14 @@
 [
   {
     "id": "D7F7753AE3F746D3E0630A27000A3B8B",
-    "name": "Web前端开发技术"
+    "name": "Web开发技术"
   },
   {
     "id": "D7F7753AE3F646D3E0630A27000A3B8B",
     "name": "Python程序设计"
+  },
+  {
+    "id": "D7F7753AE3F646D3E0630A27000A3B8B",
+    "name": "计算机组成原理"
   }
 ]

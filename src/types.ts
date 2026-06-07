@@ -13,6 +13,8 @@ export interface GrabTaskConfig {
   minIntervalMs?: number;
   /** 最大轮询间隔（毫秒） */
   maxIntervalMs?: number;
+  /** 需要抢到的课程数量（达到此数后停止其他任务） */
+  targetSuccessCount?: number;
 }
 
 export interface GrabTaskState {
@@ -44,6 +46,8 @@ export interface RegisterResult {
   success: boolean;
   message: string;
   code?: "SUCCESS" | "COURSE_FULL" | "TIME_CONFLICT" | "NOT_OPEN_YET" | "UNKNOWN";
+  /** 剩余名额（可选，接口返回后用于加速轮询） */
+  remainingSlots?: number;
 }
 
 // ============ 选课结果查询 ============

@@ -28,7 +28,7 @@ import {
 import { logger } from "./lib/logger";
 import { login } from "./lib/session";
 import { jwRequest } from "./lib/http";
-import { startTask, stopTask, listTaskStatuses } from "./lib/grabber";
+import { startTask, stopTask, listTaskStatuses, setTargetCount } from "./lib/grabber";
 import {
   queryEnrolledCourses,
   formatEnrolledResult,
@@ -399,9 +399,31 @@ async function runGrabInteractive() {
     logger.info(`Webhook: ${getWebhookUrl() ?? "未配置"}`);
   }
   console.log("");
+  const totalSelected = courseIds.length;
+
+  // 询问要抢几门课
+  let targetCount: number;
+  const maxCount = Math.min(7, totalSelected);
+  while (true) {
+    const ans = await rl.question(
+      `  请输入抢课数（最高为${maxCount}）：`
+    );
+    const trimmed = ans.trim();
+    if (trimmed === "") {
+      targetCount = 1;
+      break;
+    }
+    const n = parseInt(trimmed, 10);
+    if (isNaN(n) || n < 1 || n > maxCount || String(n) !== trimmed) {
+      logger.warn(`  请输入 1-${maxCount} 之间的数字`);
+      continue;
+    }
+    targetCount = n;
+    break;
+  }
 
   const confirm = await rl.question("  确认启动抢课? (Y/n): ");
-  if (confirm.trim().toLowerCase() === "n") {
+  if (confirm.trim().toLowerCase() !== "y") {
     logger.info("已取消");
     await waitKey();
     return;
@@ -424,10 +446,13 @@ async function runGrabInteractive() {
     initialIntervalMs: getPollIntervalMs(),
     minIntervalMs: getMinIntervalMs(),
     maxIntervalMs: getMaxIntervalMs(),
+    targetSuccessCount: targetCount,
   };
 
   const taskIds: string[] = [];
   const courseNames = getTargetCourseNames();
+  // 设置全局抢课目标
+  setTargetCount(targetCount);
   for (let i = 0; i < courseIds.length; i++) {
     const courseId = courseIds[i];
     // 优先用 env 中对应的课程名称，其次用共享名称，最后用课程 ID
@@ -722,6 +747,8 @@ async function main() {
           process.exit(1);
         }
 
+        const targetCount = courseIds.length;
+
         logger.info("正在登录教务系统...");
         let cookieHeader: string;
         try {
@@ -738,9 +765,11 @@ async function main() {
           initialIntervalMs: getPollIntervalMs(),
           minIntervalMs: getMinIntervalMs(),
           maxIntervalMs: getMaxIntervalMs(),
+          targetSuccessCount: targetCount,
         };
 
         const taskIds: string[] = [];
+        setTargetCount(targetCount);
         for (const courseId of courseIds) {
           const taskId = await startTask(cookieHeader, studentId, password, {
             courseId,

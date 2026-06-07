@@ -11,6 +11,32 @@ const taskMap = new Map<string, GrabTaskState>();
 let abortControllerMap = new Map<string, AbortController>();
 /** 全局轮次计数器，用于不同尝试轮次之间加空行 */
 let lastLoggedRound = 0;
+/** 全局已成功抢到的课程数 */
+let globalSuccessCount = 0;
+/** 全局已设置的抢课目标数（由 GrabTaskConfig.targetSuccessCount 设定） */
+let globalTargetCount = 0;
+
+/** 设置全局抢课目标数 */
+export function setTargetCount(n: number): void {
+  globalTargetCount = n;
+  globalSuccessCount = 0;
+}
+
+/** 停止指定任务之外的所有其他任务 */
+function stopOtherTasks(successTaskId: string): void {
+  for (const [id, controller] of abortControllerMap) {
+    if (id !== successTaskId) {
+      controller.abort();
+      abortControllerMap.delete(id);
+      const state = taskMap.get(id);
+      if (state && state.status === "running") {
+        state.status = "stopped";
+        state.endedAt = new Date().toISOString();
+        state.lastMessage = "⏹️ 其他课程已抢到，本任务自动停止";
+      }
+    }
+  }
+}
 
 // ============ 工具函数 ============
 
@@ -35,8 +61,20 @@ function adaptInterval(
   currentMs: number,
   resultCode: string | undefined,
   minMs: number,
-  maxMs: number
+  maxMs: number,
+  remainingSlots?: number
 ): number {
+  // 剩余名额 1-5 且课程不是已满/冲突时，直接加速到最低间隔
+  if (
+    remainingSlots !== undefined &&
+    remainingSlots >= 1 &&
+    remainingSlots <= 5 &&
+    resultCode !== "COURSE_FULL" &&
+    resultCode !== "TIME_CONFLICT"
+  ) {
+    return minMs;
+  }
+
   switch (resultCode) {
     case "NOT_OPEN_YET":
       // 未到选课时间 → 退避，减少无效请求
@@ -143,6 +181,15 @@ async function runTaskLoop(
         state.endedAt = new Date().toISOString();
         addLog(state, `✅ 抢课成功！${result.message}`);
 
+        // 检查是否达到目标数量
+        globalSuccessCount += 1;
+        if (globalTargetCount > 1 && globalSuccessCount >= globalTargetCount) {
+          logger.info(`🎯 已抢到 ${globalSuccessCount} 门课程，达到目标，停止剩余任务`);
+          stopOtherTasks("");
+        } else if (globalTargetCount > 1) {
+          logger.info(`📊 当前进度: ${globalSuccessCount}/${globalTargetCount}`);
+        }
+
         if (!isExeBinary()) {
           await notifySuccess(config.webhookUrl ?? null, config.webhookMethod ?? "GET", {
             courseName: state.courseName,
@@ -157,7 +204,15 @@ async function runTaskLoop(
       addLog(state, `❌ ${result.message} (${result.code ?? "UNKNOWN"})`);
       logger.info(`[${state.courseName}] ${result.message}`);
 
-      state.currentIntervalMs = adaptInterval(state.currentIntervalMs, result.code, minMs, maxMs);
+      state.currentIntervalMs = adaptInterval(state.currentIntervalMs, result.code, minMs, maxMs, result.remainingSlots);
+
+      if (
+        result.remainingSlots !== undefined &&
+        result.remainingSlots <= 5 &&
+        result.remainingSlots > 0
+      ) {
+        logger.info(`[${state.courseName}] 仅剩 ${result.remainingSlots} 个名额，加速轮询间隔至 ${state.currentIntervalMs}ms`);
+      }
 
       // 如果是时间冲突（不可恢复），提前停止
       if (result.code === "TIME_CONFLICT") {

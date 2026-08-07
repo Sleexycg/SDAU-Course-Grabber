@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sdau-course-grabber"
+version = "0.2.0"
+description = "山东农业大学教务系统课程查询与选课 CLI"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "cryptography>=42",
+]
+
+[project.optional-dependencies]
+build = [
+  "pyinstaller>=6.0,<7",
+]
+
+[project.scripts]
+course-grabber = "main.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["main*"]

@@ -78,8 +78,23 @@ def build_onefile(builtin_config: Mapping[str, str] | None) -> Path:
             "--noconfirm",
             "--clean",
             "--onefile",
+            "--optimize",
+            "2",
             "--log-level",
             "ERROR",
+            # The frozen application cannot build another executable, so the
+            # source-only build helper and its subprocess/tempfile dependency
+            # tree do not belong in the runtime image.  The legacy third-party
+            # crypto stack is excluded defensively in case it remains installed
+            # in the build environment after upgrading an existing checkout.
+            "--exclude-module",
+            "main.builder",
+            "--exclude-module",
+            "cryptography",
+            "--exclude-module",
+            "cffi",
+            "--exclude-module",
+            "_cffi_backend",
             "--name",
             name,
             "--distpath",

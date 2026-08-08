@@ -40,6 +40,16 @@ class BuilderTests(unittest.TestCase):
         self.assertEqual(command[command.index("--name") + 1], "course-grabber")
         self.assertTrue(options["capture_output"])
         self.assertIn("ERROR", command)
+        self.assertEqual(command[command.index("--optimize") + 1], "2")
+        excluded = {
+            command[index + 1]
+            for index, value in enumerate(command)
+            if value == "--exclude-module"
+        }
+        self.assertEqual(
+            excluded,
+            {"main.builder", "cryptography", "cffi", "_cffi_backend"},
+        )
 
     def test_configured_build_uses_student_id(self) -> None:
         output, command, _options = self._build(

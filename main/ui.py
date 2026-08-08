@@ -29,11 +29,16 @@ def configure_console() -> None:
                 pass
 
 
-def clear_screen() -> None:
-    if not sys.stdout.isatty():
+def clear_screen(*, force: bool = False) -> None:
+    if not force and not sys.stdout.isatty():
         return
-    # ANSI is supported by current Windows Terminal and avoids spawning a shell.
-    print("\033[2J\033[H", end="", flush=True)
+    if os.name == "nt":
+        # ``cls`` is more reliable than ANSI-only clearing in legacy PowerShell,
+        # packaged executables and terminals whose stdout wrapper reports no TTY.
+        if os.system("cls") == 0:
+            return
+    # 3J also clears terminal scrollback; 2J clears the visible screen.
+    print("\033[3J\033[2J\033[H", end="", flush=True)
 
 
 def visual_width(text: str) -> int:
@@ -137,6 +142,10 @@ def wait_key() -> None:
         input("\n按回车键返回菜单...")
     except (EOFError, KeyboardInterrupt):
         pass
+    finally:
+        # stdin being interactive is enough to treat this as a real CLI even if
+        # PyInstaller or a terminal wrapper reports stdout as non-interactive.
+        clear_screen(force=True)
 
 
 def _supports_key_navigation() -> bool:

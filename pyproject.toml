@@ -8,9 +8,7 @@ version = "0.2.0"
 description = "山东农业大学教务系统课程查询与选课 CLI"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = [
-  "cryptography>=42",
-]
+dependencies = []
 
 [project.optional-dependencies]
 build = [

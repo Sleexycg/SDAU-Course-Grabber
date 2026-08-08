@@ -11,12 +11,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Final, Mapping
 
-from .crypto import decrypt_secret_or_raise, encrypt_secret, is_encrypted
-from .http import DEFAULT_BASE_URL, DEFAULT_USER_AGENT
+from .crypto import (
+    ENCRYPTION_PREFIX,
+    decrypt_secret_or_raise,
+    encrypt_secret,
+    is_encrypted,
+)
+from .http import DEFAULT_USER_AGENT
 
 
 DEFAULTS: Final[dict[str, str]] = {
-    "JW_BASE_URL": DEFAULT_BASE_URL,
     "STUDENT_ID": "",
     "PASSWORD": "",
     "TARGET_COURSE_IDS": "",
@@ -160,7 +164,6 @@ def _positive_int(
 
 @dataclass(frozen=True, slots=True)
 class Settings:
-    jw_base_url: str = DEFAULTS["JW_BASE_URL"]
     student_id: str = ""
     password: str = ""
     target_course_ids: tuple[str, ...] = ()
@@ -180,10 +183,13 @@ class Settings:
 
     def to_env(self, *, encrypt_password: bool = True) -> dict[str, str]:
         password = self.password
-        if password and encrypt_password and not is_encrypted(password):
-            password = encrypt_secret(password)
+        if password and encrypt_password:
+            if is_encrypted(password):
+                if not password.startswith(ENCRYPTION_PREFIX):
+                    password = encrypt_secret(decrypt_secret_or_raise(password))
+            else:
+                password = encrypt_secret(password)
         return {
-            "JW_BASE_URL": self.jw_base_url.rstrip("/"),
             "STUDENT_ID": self.student_id,
             "PASSWORD": password,
             "TARGET_COURSE_IDS": ",".join(self.target_course_ids),
@@ -205,10 +211,6 @@ def settings_from_mapping(
 
     poll = _positive_int(values, "POLL_INTERVAL_MS", minimum=300, maximum=3_600_000)
 
-    base_url = str(values.get("JW_BASE_URL", DEFAULTS["JW_BASE_URL"])).strip().rstrip("/")
-    if not base_url.startswith(("https://", "http://")):
-        raise ConfigError("JW_BASE_URL 必须以 http:// 或 https:// 开头")
-
     course_ids = _csv_items(str(values.get("TARGET_COURSE_IDS", "")))
     course_names = _csv_items(str(values.get("TARGET_COURSE_NAMES", "")))
     if course_names and len(course_names) != len(course_ids):
@@ -217,7 +219,6 @@ def settings_from_mapping(
         )
 
     return Settings(
-        jw_base_url=base_url,
         student_id=str(values.get("STUDENT_ID", "")).strip(),
         password=password,
         target_course_ids=course_ids,
@@ -247,7 +248,7 @@ def _quote_env_value(value: str) -> str:
 
 
 def save_settings(settings: Settings, path: str | Path | None = None) -> Path:
-    """Atomically save settings using the versioned encrypted password format."""
+    """Atomically save settings using the current DPAPI password format."""
 
     target = Path(path).resolve() if path is not None else config_path()
     target.parent.mkdir(parents=True, exist_ok=True)

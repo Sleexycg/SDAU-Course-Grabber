@@ -17,7 +17,7 @@ from .config import (
     save_settings,
     settings_from_mapping,
 )
-from .crypto import SecretDecryptionError
+from .crypto import SecretProtectionError
 from .grabber import GrabEngine
 from .http import JwHttpClient
 from .models import EnrolledCourseResult, GrabTaskState, GrabTaskStatus
@@ -46,7 +46,6 @@ def _make_services(settings: Settings) -> tuple[Session, CourseSelector]:
     """Construct the protocol stack in one place for every CLI mode."""
 
     client = JwHttpClient(
-        settings.jw_base_url,
         timeout=settings.jw_timeout_seconds,
         retry_count=settings.jw_retry_count,
         user_agent=settings.jw_user_agent,
@@ -356,8 +355,6 @@ def run_config(settings: Settings) -> int:
     new_password = prompt_secret("密码", has_current=bool(settings.password))
     password = new_password or settings.password
 
-    base_url = prompt("教务系统地址", default=settings.jw_base_url).rstrip("/")
-
     poll_ms = prompt_int(
         "轮询间隔(ms)", default=settings.poll_interval_ms, minimum=300, maximum=3_600_000
     )
@@ -390,7 +387,6 @@ def run_config(settings: Settings) -> int:
 
     candidate = replace(
         settings,
-        jw_base_url=base_url,
         student_id=student_id,
         password=password,
         target_course_ids=tuple(course_ids),
@@ -402,10 +398,10 @@ def run_config(settings: Settings) -> int:
         # a file that the next process fails to load.
         candidate = settings_from_mapping(candidate.to_env(encrypt_password=False))
         saved_path = save_settings(candidate)
-    except (ConfigError, SecretDecryptionError) as exc:
+    except (ConfigError, SecretProtectionError) as exc:
         error(f"配置未保存：{exc}")
         return 1
-    success(f"配置已保存到 {saved_path}（密码使用本机绑定加密）")
+    success(f"配置已保存到 {saved_path}（密码使用 Windows DPAPI 加密）")
     return 0
 
 
@@ -493,7 +489,7 @@ def show_menu(initial_settings: Settings | None = None) -> int:
             run_config(settings)
             try:
                 settings = load_settings()
-            except (ConfigError, SecretDecryptionError) as exc:
+            except (ConfigError, SecretProtectionError) as exc:
                 error(str(exc))
             continue
 
@@ -526,7 +522,7 @@ def show_menu(initial_settings: Settings | None = None) -> int:
         wait_key()
         try:
             settings = load_settings()
-        except (ConfigError, SecretDecryptionError) as exc:
+        except (ConfigError, SecretProtectionError) as exc:
             error(f"重新加载配置失败：{exc}")
 
 
@@ -582,12 +578,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         settings = load_settings()
-    except (ConfigError, SecretDecryptionError) as exc:
+    except (ConfigError, SecretProtectionError) as exc:
         if command == "config":
             warning(str(exc))
             try:
                 settings = load_settings(decrypt_password=False)
-            except (ConfigError, SecretDecryptionError) as fallback_exc:
+            except (ConfigError, SecretProtectionError) as fallback_exc:
                 error(f"无法加载配置：{fallback_exc}")
                 return 2
         else:

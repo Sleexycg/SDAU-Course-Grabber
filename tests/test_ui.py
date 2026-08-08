@@ -5,7 +5,7 @@ import unittest
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
-from main.ui import info, select_term, success
+from main.ui import clear_screen, info, select_term, success, wait_key
 
 
 class StatusOutputTests(unittest.TestCase):
@@ -26,6 +26,49 @@ class StatusOutputTests(unittest.TestCase):
             "[2026/8/7 21:17:43] [INFO] 正在登录教务系统...\n"
             "[2026/8/7 21:17:44] [SUCCESS] 登录成功 ✅\n",
         )
+
+
+class ScreenClearingTests(unittest.TestCase):
+    def test_wait_key_clears_before_returning_to_menu(self) -> None:
+        with (
+            patch("main.ui.sys.stdin.isatty", return_value=True),
+            patch("builtins.input", return_value=""),
+            patch("main.ui.clear_screen") as mocked_clear,
+        ):
+            wait_key()
+
+        mocked_clear.assert_called_once_with(force=True)
+
+    def test_noninteractive_wait_does_not_prompt_or_clear(self) -> None:
+        with (
+            patch("main.ui.sys.stdin.isatty", return_value=False),
+            patch("builtins.input") as mocked_input,
+            patch("main.ui.clear_screen") as mocked_clear,
+        ):
+            wait_key()
+
+        mocked_input.assert_not_called()
+        mocked_clear.assert_not_called()
+
+    def test_forced_non_windows_clear_erases_scrollback_and_screen(self) -> None:
+        output = io.StringIO()
+        with (
+            patch("main.ui.os.name", "posix"),
+            redirect_stdout(output),
+        ):
+            clear_screen(force=True)
+
+        self.assertEqual(output.getvalue(), "\033[3J\033[2J\033[H")
+
+    def test_windows_terminal_uses_cls(self) -> None:
+        with (
+            patch("main.ui.os.name", "nt"),
+            patch("main.ui.sys.stdout.isatty", return_value=True),
+            patch("main.ui.os.system", return_value=0) as mocked_system,
+        ):
+            clear_screen()
+
+        mocked_system.assert_called_once_with("cls")
 
 
 class TermSelectorTests(unittest.TestCase):

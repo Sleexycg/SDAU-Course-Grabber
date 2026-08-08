@@ -11,6 +11,7 @@ from .course_selector import CourseSelector, format_enrolled_result
 from .config import (
     ConfigError,
     Settings,
+    config_dir,
     is_frozen,
     load_course_list,
     load_settings,
@@ -23,6 +24,7 @@ from .http import JwHttpClient
 from .models import EnrolledCourseResult, GrabTaskState, GrabTaskStatus
 from .session import Session
 from .term import infer_current_term, is_valid_term
+from .timetable import export_timetable_png
 from .ui import (
     choose_courses,
     clear_screen,
@@ -106,6 +108,12 @@ def run_query(
         f"{result.summary.total_credits:.1f} 学分"
     )
     print("\n" + format_enrolled_result(result) + "\n")
+    try:
+        timetable_path = export_timetable_png(result, output_dir=config_dir())
+    except Exception as exc:
+        warning(f"课程表图片导出失败：{exc}")
+    else:
+        success(f"课程表图片已导出：{timetable_path}")
     return 0
 
 
@@ -505,7 +513,7 @@ def show_menu(initial_settings: Settings | None = None) -> int:
         choice = prompt("请选择")
 
         if choice == "0":
-            print("再见！")
+            print("Exiting...")
             return 0
         if choice == "1":
             run_query(settings, interactive=True)
@@ -534,7 +542,9 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("menu", help="打开交互菜单")
 
-    query_parser = subparsers.add_parser("query", help="查询已选课程")
+    query_parser = subparsers.add_parser(
+        "query", help="查询已选课程并导出 PNG 课程表"
+    )
     query_parser.add_argument(
         "term", nargs="?", help="学期，例如 2026-2027-1；默认按当前日期自动判断"
     )

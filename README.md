@@ -82,4 +82,4 @@
 - 请确认课程名称、教师和教学班 ID 一致，避免选错同名课程。
 - 课程表图片和账号信息属于个人数据，请妥善保存。
 
-接口协议与字段说明见 [教务系统接口说明.md](Interface Instruction.md)。
+接口协议与字段说明见 Interface Instruction.md

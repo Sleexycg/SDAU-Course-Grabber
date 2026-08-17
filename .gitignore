@@ -12,8 +12,10 @@ dist/
 .mypy_cache/
 .ruff_cache/
 .codegraph/
-.reasonix/
 .env.local
 .env
 builtin_config.json
 students.txt
+*.png
+*.json
+web/
